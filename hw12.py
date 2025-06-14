@@ -8,26 +8,76 @@ import json
 import base64
 
 class TextRequest:
-    def __init__(self, api_key: str) -> None:
-        self.api_key = api_key
-        self.base_url = "https://api.mistral.ai/v1/chat/completions"
-
+    
     def send(self, text: str, model: str) -> dict:
-        """Отправка текстового запроса"""
-        return {}
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json"
+        }
+        payload = {
+            "model": model,
+            "messages": [
+                {
+                    "role": "user",
+                    "content": text
+                }
+            ]
+        }
+        try:
+            response = requests.post(self.base_url, headers=headers, json=payload)
+            response.raise_for_status()
+            return response.json()
+        except requests.exceptions.RequestException as e:
+            logging.error(f"Error sending text request: {e}")
+            return {"error": str(e)}
 
 class ImageRequest:
-    def __init__(self, api_key: str) -> None:
-        self.api_key = api_key
-        self.base_url = "https://api.mistral.ai/v1/chat/completions"
-
+    
     def encode_image(self, image_path: str) -> Optional[str]:
-        """Кодирование изображения в base64"""
-        return None
+        try:
+            with open(image_path, "rb") as image_file:
+                return base64.b64encode(image_file.read()).decode('utf-8')
+        except FileNotFoundError:
+            logging.error(f"Error: The file {image_path} was not found.")
+            return None
+        except Exception as e:
+            logging.error(f"Error: {e}")
+            return None
 
     def send(self, text: str, image_path: str, model: str) -> dict:
-        """Отправка запроса с изображением"""
-        return {}
+        base64_image = self.encode_image(image_path)
+        if base64_image is None:
+            return {"error": "Failed to encode image"}
+
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json"
+        }
+        payload = {
+            "model": model,
+            "messages": [
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": text
+                        },
+                        {
+                            "type": "image_url",
+                            "image_url": f"data:image/jpeg;base64,{base64_image}"
+                        }
+                    ]
+                }
+            ]
+        }
+        try:
+            response = requests.post(self.base_url, headers=headers, json=payload)
+            response.raise_for_status()
+            return response.json()
+        except requests.exceptions.RequestException as e:
+            logging.error(f"Error sending image request: {e}")
+            return {"error": str(e)}
 
 class ChatFacade:
     def __init__(self, api_key: str) -> None:
@@ -65,4 +115,9 @@ class ChatFacade:
         pass
 
 if __name__ == "__main__":
-    print("Базовая структура создана")
+    api_key = "test_key"
+    text_req = TextRequest(api_key)
+    img_req = ImageRequest(api_key)
+    
+    print("Тест текстового запроса:", text_req.send("Привет", "test-model"))
+    print("Тест запроса с изображением:", img_req.send("Описание", "test.jpg", "test-model"))
